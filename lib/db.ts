@@ -102,22 +102,110 @@ export async function upsertDailyMetrics(row: {
   if (error) throw error;
 }
 
-export interface Recommendation {
-  workspace_id: string;
-  customer_id: string;
-  date: string;
-  title: string;
-  reason: string;
-  evidence: any;
-  confidence: number;
-  status: "pending" | "approved" | "rejected" | "snoozed";
-  ai_model: string;
+export async function getRecentMetrics(workspaceId: string, limit = 14) {
+  const { data, error } = await supabase
+    .from("daily_metrics")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("date", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
 }
 
-export async function saveRecommendations(recs: Recommendation[]) {
-  if (recs.length === 0) return;
-  const { error } = await supabase.from("recommendations").upsert(recs, {
-    onConflict: "workspace_id,customer_id,date,title",
+// ─── Campaign Metrics helpers ─────────────────────────────────────────────────
+
+export interface CampaignMetrics {
+  workspace_id: string;
+  customer_id: string;
+  campaign_id: string;
+  campaign_name: string;
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  revenue: number;
+}
+
+export async function upsertCampaignMetrics(rows: CampaignMetrics[]) {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("campaign_metrics").upsert(rows, {
+    onConflict: "workspace_id,customer_id,campaign_id,date",
+  });
+  if (error) throw error;
+}
+
+export async function getCampaignMetrics(
+  workspaceId: string,
+  campaignIds?: string[],
+  days: number = 30
+): Promise<CampaignMetrics[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  
+  let query = supabase
+    .from("campaign_metrics")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .gte("date", since.toISOString().slice(0, 10))
+    .order("date", { ascending: true });
+
+  if (campaignIds && campaignIds.length > 0) {
+    query = query.in("campaign_id", campaignIds);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data as CampaignMetrics[]) ?? [];
+}
+
+// ─── Media Plans helpers ──────────────────────────────────────────────────────
+
+export interface MediaPlan {
+  id: string;
+  workspace_id: string;
+  campaign_id: string;
+  content_md: string;
+  created_at: string;
+}
+
+export async function getMediaPlans(workspaceId: string, campaignIds: string[]): Promise<MediaPlan[]> {
+  const { data, error } = await supabase
+    .from("media_plans")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .in("campaign_id", campaignIds);
+  if (error) throw error;
+  return (data as MediaPlan[]) ?? [];
+}
+
+// ─── Creative Insights helpers ────────────────────────────────────────────────
+
+export interface CreativeInsight {
+  id: string;
+  workspace_id: string;
+  campaign_id: string;
+  content_md: string;
+  created_at: string;
+}
+
+export async function getCreativeInsights(workspaceId: string, campaignIds: string[]): Promise<CreativeInsight[]> {
+  const { data, error } = await supabase
+    .from("creative_insights")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .in("campaign_id", campaignIds);
+  if (error) throw error;
+  return (data as CreativeInsight[]) ?? [];
+}
+
+// ─── Recommendations helpers ──────────────────────────────────────────────────
+
+export async function saveRecommendations(rows: any[]) {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("recommendations").upsert(rows, {
+    onConflict: "workspace_id,date,title",
   });
   if (error) throw error;
 }
@@ -128,37 +216,10 @@ export async function getRecommendations(workspaceId: string, limit = 10) {
     .select("*")
     .eq("workspace_id", workspaceId)
     .order("date", { ascending: false })
-    .order("confidence", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
-  return data;
-}
-
-/**
- * Fetches recent daily metrics for a workspace.
- */
-export async function getRecentMetrics(workspaceId: string, days: number = 7) {
-  const { data, error } = await supabase
-    .from("daily_metrics")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .order("date", { ascending: false })
-    .limit(days);
-  if (error) throw error;
-  return data;
-}
-
-export async function updateRecommendationStatus(
-  id: string,
-  workspaceId: string,
-  status: "approved" | "rejected" | "snoozed"
-) {
-  const { error } = await supabase
-    .from("recommendations")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("workspace_id", workspaceId);
-  if (error) throw error;
+  return data ?? [];
 }
 
 
@@ -209,7 +270,7 @@ export async function getOutputs(
   return data ?? [];
 }
 
-// ─── Job runs ─────────────────────────────────────────────────────────────────
+// ─── Job run history ──────────────────────────────────────────────────────────
 
 export async function createJobRun(workspaceId: string, jobType: string) {
   const { data, error } = await supabase

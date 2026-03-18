@@ -2,9 +2,10 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { listCampaigns, refreshAccessToken } from "@/lib/googleAds";
-import { getOrCreateWorkspace, getGoogleAdsIntegration } from "@/lib/db";
+import { getOrCreateWorkspace, getGoogleAdsIntegration, getCampaignMetrics, getMediaPlans, getCreativeInsights } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
+import { refreshAccessToken, listCampaigns, fetchCampaignMetricsForAccountOrManager } from "@/lib/googleAds";
+import { generatePulseForCampaign, generateBudgetAdjustForCampaign, generateClientUpdateForCampaign } from "@/lib/outputGen"; // Updated imports
 
 export async function GET() {
   const { userId } = auth();
@@ -21,8 +22,46 @@ export async function GET() {
     const refreshToken = await decrypt(integration.refresh_token_enc);
     const accessToken = await refreshAccessToken(refreshToken);
     const loginCustomerId = integration.google_ads_customer_id;
+
+    // Fetch all campaigns
     const campaigns = await listCampaigns(accessToken, loginCustomerId);
-    return NextResponse.json({ campaigns });
+
+    // Fetch metrics for all campaigns for a recent period (e.g., last 30 days)
+    const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const dateTo = new Date().toISOString().slice(0, 10);
+
+    // Fetch metrics for all accessible accounts/customers and their campaigns
+    const allCustomerMetrics = await fetchCampaignMetricsForAccountOrManager(
+      loginCustomerId, // Start from the main customer ID
+      accessToken,
+      dateFrom,
+      dateTo,
+      {
+        loginCustomerId: loginCustomerId, // Use for recursive calls if needed
+        concurrency: 5,
+        retries: 1,
+        maxDepth: 5,
+      }
+    );
+    
+    // Map fetched metrics to campaign objects for easier lookup
+    const campaignMetricsMap = new Map<string, CampaignRow[]>();
+    allCustomerMetrics.forEach(metric => {
+      if (!campaignMetricsMap.has(metric.id)) {
+        campaignMetricsMap.set(metric.id, []);
+      }
+      campaignMetricsMap.get(metric.id)?.push(metric);
+    });
+
+    // Enrich campaign list with metrics
+    const enrichedCampaigns = campaigns.map(campaign => ({
+      ...campaign,
+      // Note: metrics here are an array for a given campaign over the date range,
+      // the frontend will need to aggregate or select relevant data.
+      metrics: campaignMetricsMap.get(campaign.id) || [],
+    }));
+
+    return NextResponse.json({ campaigns: enrichedCampaigns });
   } catch (error: any) {
     console.error("Failed to list campaigns:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,9 +75,9 @@ export async function POST(req: Request) {
   const ws = await getOrCreateWorkspace(userId);
 
   const body = await req.json().catch(() => ({}));
-  const { campaignId, type, date } = body;
+  const { campaignIds, type, date } = body; // date is optional, defaults to today
 
-  if (!campaignId || !type) return NextResponse.json({ error: "campaignId and type required" }, { status: 400 });
+  if (!Array.isArray(campaignIds) || campaignIds.length === 0) return NextResponse.json({ error: "campaignIds required" }, { status: 400 });
   if (!["pulse", "budget_adjust", "client_update"].includes(type)) return NextResponse.json({ error: "invalid type" }, { status: 400 });
 
   try {
@@ -51,25 +90,26 @@ export async function POST(req: Request) {
     const accessToken = await refreshAccessToken(refreshToken);
     const customerId = integration.google_ads_customer_id;
 
-    // Fetch recent metrics
-    const { getRecentMetrics } = await import("@/lib/db");
-    const allRows = await getRecentMetrics(ws.id, 7); // Get last 7 days
+    // Fetch recent metrics for the selected campaigns
+    const recentMetrics = await getCampaignMetrics(ws.id, campaignIds, 7); // Get last 7 days of campaign metrics
 
     let content: string;
+    const reportDate = date || new Date().toISOString().slice(0, 10);
+
     if (type === "pulse") {
-      const { generatePulseForCampaign } = await import("@/lib/outputGen");
-      content = generatePulseForCampaign(allRows, campaignId, date || new Date().toISOString().slice(0, 10));
+      content = generatePulseForCampaign(recentMetrics, campaignIds, reportDate);
     } else if (type === "budget_adjust") {
-      const { generateBudgetAdjustForCampaign } = await import("@/lib/outputGen");
-      content = generateBudgetAdjustForCampaign(allRows, campaignId, date || new Date().toISOString().slice(0, 10));
+      content = generateBudgetAdjustForCampaign(recentMetrics, campaignIds, reportDate);
+    } else if (type === "client_update") {
+      content = generateClientUpdateForCampaign(recentMetrics, campaignIds, reportDate, customerId);
     } else {
-      const { generateClientUpdateForCampaign } = await import("@/lib/outputGen");
-      content = generateClientUpdateForCampaign(allRows, campaignId, date || new Date().toISOString().slice(0, 10), customerId);
+      // Should not happen due to initial check, but for safety
+      return NextResponse.json({ error: "Invalid report type" }, { status: 400 });
     }
 
     return NextResponse.json({ content });
   } catch (error: any) {
-    console.error("Failed to generate for campaign:", error);
+    console.error(`Failed to generate ${type} for campaign(s):`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

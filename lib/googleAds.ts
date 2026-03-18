@@ -22,6 +22,7 @@ export interface OAuthTokenExchangeResponse {
   expires_in?: number;
 }
 
+// Updated CampaignRow to include all fields needed for campaign metrics
 export interface CampaignRow {
   id: string;
   name: string;
@@ -105,6 +106,7 @@ interface GoogleAdsSearchStreamChunk {
 
 interface GoogleAdsAccessibleCustomersResponse {
   resourceNames?: string[];
+
 }
 
 export interface CustomerClientRow {
@@ -648,7 +650,7 @@ export async function fetchCampaignMetricsForAccountOrManager(
   async function worker(): Promise<void> {
     while (queue.length > 0) {
       const client = queue.shift();
-      if (!client) return;
+      if (!client) return; // Ensure client is defined
 
       let attempt = 0;
 
@@ -690,27 +692,102 @@ export async function fetchCampaignMetricsForAccountOrManager(
 }
 
 /**
- * Backward-compatible wrapper.
+ * Fetches and upserts campaign metrics for a given date range.
+ * This function is intended to be called by a background job.
  */
-export async function fetchCampaignMetrics(
+export async function syncCampaignMetrics(
   customerId: string,
   accessToken: string,
   dateFrom: string,
-  dateTo: string
-): Promise<CampaignRow[]> {
+  dateTo: string,
+  workspaceId: string // Need workspaceId to upsert into the correct workspace's table
+) {
   const cleanCustomerId = sanitizeCustomerId(customerId);
-  return fetchCampaignMetricsForAccountOrManager(
-    cleanCustomerId,
-    accessToken,
-    dateFrom,
-    dateTo,
-    {
-      loginCustomerId: cleanCustomerId,
-      concurrency: 5,
-      retries: 1,
-      maxDepth: 25,
+  const loginCustomerId = cleanCustomerId; // Use the customerId itself as loginCustomerId for direct accounts
+
+  const customerInfo = await getCustomerInfo(cleanCustomerId, accessToken, { loginCustomerId });
+
+  let leafClients: CustomerClientRow[] = [];
+  if (customerInfo.manager) {
+    leafClients = await getAllLeafClientAccounts(cleanCustomerId, accessToken, {
+      loginCustomerId,
+      maxDepth: 5, // Limit depth for sync jobs
+    });
+  } else {
+    leafClients.push({
+      id: cleanCustomerId,
+      descriptiveName: customerInfo.descriptiveName,
+      manager: false,
+      level: 1, // Assuming level 1 for direct accounts
+      hidden: false,
+      testAccount: customerInfo.testAccount,
+      status: customerInfo.status,
+      clientCustomer: "", // Not applicable for direct accounts
+    });
+  }
+
+  const concurrency = Math.max(1, 5); // Sync with moderate concurrency
+  const retries = 1;
+
+  const queue = [...leafClients];
+  const allRows: CampaignRow[] = [];
+
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      const client = queue.shift();
+      if (!client || !client.id) continue;
+
+      let attempt = 0;
+
+      while (true) {
+        try {
+          const rows = await fetchCampaignMetricsForClient(
+            client.id,
+            accessToken,
+            dateFrom,
+            dateTo,
+            {
+              loginCustomerId,
+              customerDescriptiveName: client.descriptiveName,
+            }
+          );
+          allRows.push(...rows);
+          break;
+        } catch (error) {
+          attempt += 1;
+          if (attempt > retries) {
+            console.error(
+              `Failed to fetch campaign metrics for client ${client.id} (${client.descriptiveName}):`,
+              error
+            );
+            break;
+          }
+          await sleep(500 * attempt); // Exponential backoff
+        }
+      }
     }
-  );
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  // Upsert campaign metrics into Supabase
+  if (allRows.length === 0) return;
+
+  const { upsertCampaignMetrics } = await import("./db");
+  const metricsToUpsert = allRows.map((row) => ({
+    workspace_id: workspaceId, // This needs to be provided or derived
+    customer_id: row.customerId ?? customerId, // Use fetched customerId if available
+    campaign_id: row.id,
+    campaign_name: row.name,
+    date: row.date,
+    spend: row.costMicros / 1_000_000,
+    impressions: row.impressions,
+    clicks: row.clicks,
+    conversions: row.conversions,
+    revenue: row.conversionsValue,
+  }));
+
+  await upsertCampaignMetrics(metricsToUpsert);
 }
 
 // ─── List campaigns ───────────────────────────────────────────────────────────
@@ -816,3 +893,5 @@ export function aggregateCampaigns(rows: CampaignRow[]): DailySummary {
     losers,
   };
 }
+
+export const fetchCampaignMetrics = fetchCampaignMetricsForAccountOrManager;

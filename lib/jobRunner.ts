@@ -14,6 +14,7 @@ import {
   refreshAccessToken,
   fetchCampaignMetrics,
   aggregateCampaigns,
+  syncCampaignMetrics,
 } from "./googleAds";
 import {
   generatePulse,
@@ -67,6 +68,21 @@ export async function runJobForWorkspace(
 
     const today = todayStr();
     const yesterday = yesterdayStr();
+
+    // Fetch and sync campaign-level metrics for the last 30 days (initial population)
+    // For regular runs, we might just sync yesterday and today.
+    // Let's do last 30 days to provide enough history for the campaigns page.
+    const syncFrom = new Date();
+    syncFrom.setDate(syncFrom.getDate() - 30);
+    const syncFromStr = syncFrom.toISOString().slice(0, 10);
+    
+    await syncCampaignMetrics(
+      customerId,
+      accessToken,
+      syncFromStr,
+      today,
+      workspaceId
+    );
 
     // Fetch campaign rows for yesterday (full day) and today (partial)
     const rows = await fetchCampaignMetrics(

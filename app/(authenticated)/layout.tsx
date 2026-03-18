@@ -28,6 +28,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
         <nav className="flex flex-col gap-2 py-6 px-3 flex-1">
           {[
             { href: "/", label: "Overview", icon: "📊" },
+            { href: "/campaigns", label: "Campaigns", icon: "🚀" },
             { href: "/outputs", label: "Outputs", icon: "📄" },
             { href: "/recommendations", label: "Strategy", icon: "💡" },
             { href: "/settings", label: "Settings", icon: "⚙️" },
