@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Default to Dark Theme */
+  :root {
+    --bg-surface: #0a0a0c;
+    --bg-surface-secondary: #141416;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-default: #1e293b;
+    --accent-blue: #6366f1;
+    --accent-indigo: #818cf8;
+  }
+
+  /* Keep .dark class for compatibility if needed, but root is now dark */
+  .dark {
+    --bg-surface: #0a0a0c;
+    --bg-surface-secondary: #141416;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --border-default: #1e293b;
+  }
+
+  * {
+    @apply transition-colors duration-200;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-slate-800 text-slate-100 font-semibold rounded-xl border border-slate-700 hover:bg-slate-700 transition-all active:scale-95;
+  }
+
+  .btn-accent {
+    @apply px-4 py-2 bg-rose-600 text-white font-semibold rounded-xl hover:bg-rose-700 transition-all shadow-lg shadow-rose-500/20 active:scale-95;
+  }
+
+  .btn-success {
+    @apply px-4 py-2 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-slate-400 font-semibold rounded-xl hover:bg-slate-800/50 hover:text-slate-100 transition-all;
+  }
+
+  .card {
+    @apply bg-slate-900/50 border border-slate-800 rounded-2xl p-6 shadow-sm backdrop-blur-sm;
+  }
+
+  .nav-link {
+    @apply flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all;
+  }
+
+  .nav-link.active {
+    @apply text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 shadow-inner;
+  }
+}
+
+html,
+body {
+  @apply bg-[#030304] text-slate-200 antialiased;
+}
