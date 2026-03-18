@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS recommendations (
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'snoozed')),
   ai_model TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(workspace_id, date, title)
 );
 
 -- Index for performance

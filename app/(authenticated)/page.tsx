@@ -105,6 +105,11 @@ export default async function OverviewPage() {
               <span>📂</span> View Reports
             </button>
           </Link>
+          <Link href="/recommendations">
+            <button className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-bold text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all shadow-sm">
+              <span>💡</span> View Strategy
+            </button>
+          </Link>
           <Link href="/campaigns">
             <button className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-bold text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all shadow-sm">
               <span>📈</span> Campaign Analytics

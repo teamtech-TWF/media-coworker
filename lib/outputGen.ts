@@ -398,14 +398,14 @@ export async function generateRecommendations(
   `;
 
   try {
-    const res = await callGeminiJson({
+    const { content, model } = await callGeminiJson({
       system: "You are a specialized media buying assistant. Return structured JSON only.",
       user: prompt,
       schemaName: "recommendations",
       input: { date, customerId },
     });
 
-    const items = Array.isArray(res.content) ? res.content : [];
+    const items = Array.isArray(content) ? content : [];
 
     return items.map((item: any) => ({
       workspace_id: workspaceId,
@@ -416,7 +416,7 @@ export async function generateRecommendations(
       evidence: item.evidence || {},
       confidence: item.confidence || 0.7,
       status: "pending" as const,
-      ai_model: "gemini-2.0-flash",
+      ai_model: model,
     }));
   } catch (err) {
     console.error("[generateRecommendations] Gemini failed:", err);

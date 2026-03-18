@@ -117,7 +117,7 @@ export interface Recommendation {
 export async function saveRecommendations(recs: Recommendation[]) {
   if (recs.length === 0) return;
   const { error } = await supabase.from("recommendations").upsert(recs, {
-    onConflict: "workspace_id,date,title",
+    onConflict: "workspace_id,customer_id,date,title",
   });
   if (error) throw error;
 }
@@ -130,6 +130,20 @@ export async function getRecommendations(workspaceId: string, limit = 10) {
     .order("date", { ascending: false })
     .order("confidence", { ascending: false })
     .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Fetches recent daily metrics for a workspace.
+ */
+export async function getRecentMetrics(workspaceId: string, days: number = 7) {
+  const { data, error } = await supabase
+    .from("daily_metrics")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("date", { ascending: false })
+    .limit(days);
   if (error) throw error;
   return data;
 }
