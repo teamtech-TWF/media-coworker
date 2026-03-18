@@ -20,6 +20,7 @@ import {
   generateBudgetAdjust,
   generateClientUpdate,
   generateOptimizerOutput,
+  generateRecommendations,
 } from "./outputGen";
 
 function todayStr(): string {
@@ -133,8 +134,22 @@ export async function runJobForWorkspace(
         today,
         optimizerTrigger
       );
+
+      // Phase 1: Recommendations
+      const recommendations = await generateRecommendations(
+        workspaceId,
+        customerId,
+        today,
+        todaySummary,
+        yestSummary,
+        rows
+      );
+      if (recommendations.length > 0) {
+        const { saveRecommendations } = await import("./db");
+        await saveRecommendations(recommendations);
+      }
     } catch (err) {
-      console.warn("[jobRunner] Gemini optimizer failed:", err);
+      console.warn("[jobRunner] AI outputs failed:", err);
     }
 
     await finishJobRun(run.id, "success");
