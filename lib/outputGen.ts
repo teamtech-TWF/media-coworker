@@ -359,3 +359,67 @@ export async function generateOutputsAI(
     return { ok: false, error: String(err) };
   }
 }
+
+// ─── Phase 1: Recommendations Generator ──────────────────────────────────────
+
+export async function generateRecommendations(
+  workspaceId: string,
+  customerId: string,
+  date: string,
+  todaySummary: DailySummary,
+  yestSummary: DailySummary | null,
+  allRows: CampaignRow[]
+) {
+  const prompt = `
+    You are an expert Google Ads Strategist. Analyze the following campaign performance data and provide 3-5 actionable recommendations.
+    
+    Data Summary for ${date}:
+    - Spend: ${fmtCurrency(todaySummary.spend)}
+    - Conv: ${todaySummary.conversions}
+    - Revenue: ${fmtCurrency(todaySummary.revenue)}
+    - ROAS: ${todaySummary.roas.toFixed(2)}
+    
+    Historical context (yesterday):
+    - Spend: ${yestSummary ? fmtCurrency(yestSummary.spend) : "N/A"}
+    - ROAS: ${yestSummary ? yestSummary.roas.toFixed(2) : "N/A"}
+
+    Detailed Rows (Top 15):
+    ${JSON.stringify(allRows.slice(0, 15))}
+
+    Return ONLY a JSON array of objects with the following schema:
+    [
+      {
+        "title": "Short action-oriented title",
+        "reason": "Why this is recommended (1-2 sentences)",
+        "evidence": { "metric": "value", "trend": "description" },
+        "confidence": 0.0 to 1.0
+      }
+    ]
+  `;
+
+  try {
+    const res = await callGeminiJson({
+      system: "You are a specialized media buying assistant. Return structured JSON only.",
+      user: prompt,
+      schemaName: "recommendations",
+      input: { date, customerId },
+    });
+
+    const items = Array.isArray(res.content) ? res.content : [];
+
+    return items.map((item: any) => ({
+      workspace_id: workspaceId,
+      customer_id: customerId,
+      date,
+      title: item.title || "Optimization Opportunity",
+      reason: item.reason || "Performance patterns suggest this change.",
+      evidence: item.evidence || {},
+      confidence: item.confidence || 0.7,
+      status: "pending" as const,
+      ai_model: "gemini-2.0-flash",
+    }));
+  } catch (err) {
+    console.error("[generateRecommendations] Gemini failed:", err);
+    return [];
+  }
+}

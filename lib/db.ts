@@ -102,16 +102,51 @@ export async function upsertDailyMetrics(row: {
   if (error) throw error;
 }
 
-export async function getRecentMetrics(workspaceId: string, days = 7) {
+export interface Recommendation {
+  workspace_id: string;
+  customer_id: string;
+  date: string;
+  title: string;
+  reason: string;
+  evidence: any;
+  confidence: number;
+  status: "pending" | "approved" | "rejected" | "snoozed";
+  ai_model: string;
+}
+
+export async function saveRecommendations(recs: Recommendation[]) {
+  if (recs.length === 0) return;
+  const { error } = await supabase.from("recommendations").upsert(recs, {
+    onConflict: "workspace_id,date,title",
+  });
+  if (error) throw error;
+}
+
+export async function getRecommendations(workspaceId: string, limit = 10) {
   const { data, error } = await supabase
-    .from("daily_metrics")
+    .from("recommendations")
     .select("*")
     .eq("workspace_id", workspaceId)
     .order("date", { ascending: false })
-    .limit(days);
+    .order("confidence", { ascending: false })
+    .limit(limit);
   if (error) throw error;
-  return data ?? [];
+  return data;
 }
+
+export async function updateRecommendationStatus(
+  id: string,
+  workspaceId: string,
+  status: "approved" | "rejected" | "snoozed"
+) {
+  const { error } = await supabase
+    .from("recommendations")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("workspace_id", workspaceId);
+  if (error) throw error;
+}
+
 
 // ─── Generated outputs ────────────────────────────────────────────────────────
 

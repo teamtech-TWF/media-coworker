@@ -29,6 +29,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
           {[
             { href: "/", label: "Overview", icon: "📊" },
             { href: "/outputs", label: "Outputs", icon: "📄" },
+            { href: "/recommendations", label: "Strategy", icon: "💡" },
             { href: "/settings", label: "Settings", icon: "⚙️" },
           ].map((item) => (
             <Link
