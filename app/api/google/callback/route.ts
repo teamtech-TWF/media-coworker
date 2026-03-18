@@ -15,11 +15,11 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("Google OAuth error:", error);
-    return NextResponse.redirect(new URL("/app/settings?error=oauth_denied", req.url));
+    return NextResponse.redirect(new URL("/settings?error=oauth_denied", req.url));
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/app/settings?error=missing_params", req.url));
+    return NextResponse.redirect(new URL("/settings?error=missing_params", req.url));
   }
 
   try {
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const stateData = JSON.parse(Buffer.from(state, "base64url").toString());
     const { workspaceId, userId: stateUserId } = stateData;
     if (stateUserId !== userId) {
-      return NextResponse.redirect(new URL("/app/settings?error=state_mismatch", req.url));
+      return NextResponse.redirect(new URL("/settings?error=state_mismatch", req.url));
     }
 
     // Exchange code for tokens
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     const { access_token, refresh_token, scope } = tokens;
 
     if (!refresh_token) {
-      return NextResponse.redirect(new URL("/app/settings?error=no_refresh_token", req.url));
+      return NextResponse.redirect(new URL("/settings?error=no_refresh_token", req.url));
     }
 
     // Get customer id from accessible customers
@@ -48,9 +48,9 @@ export async function GET(req: NextRequest) {
 
     await auditLog(workspaceId, userId, "google_ads_connected", { customerId, scope });
 
-    return NextResponse.redirect(new URL("/app/settings?success=connected", req.url));
+    return NextResponse.redirect(new URL("/settings?success=connected", req.url));
   } catch (err) {
     console.error("Callback error:", err);
-    return NextResponse.redirect(new URL("/app/settings?error=callback_failed", req.url));
+    return NextResponse.redirect(new URL("/settings?error=callback_failed", req.url));
   }
 }

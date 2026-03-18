@@ -20,7 +20,8 @@ export async function GET() {
 
     const refreshToken = await decrypt(integration.refresh_token_enc);
     const accessToken = await refreshAccessToken(refreshToken);
-    const campaigns = await listCampaigns(accessToken);
+    const loginCustomerId = integration.google_ads_customer_id;
+    const campaigns = await listCampaigns(accessToken, loginCustomerId);
     return NextResponse.json({ campaigns });
   } catch (error: any) {
     console.error("Failed to list campaigns:", error);

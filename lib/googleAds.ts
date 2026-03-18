@@ -617,9 +617,7 @@ export async function fetchCampaignMetricsForAccountOrManager(
 ): Promise<CampaignRow[]> {
   const cleanCustomerId = sanitizeCustomerId(customerId);
   const loginCustomerId = sanitizeCustomerId(
-    options?.loginCustomerId ??
-      process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ??
-      cleanCustomerId
+    options?.loginCustomerId ?? cleanCustomerId
   );
 
   const customerInfo = await getCustomerInfo(cleanCustomerId, accessToken, {
@@ -700,14 +698,14 @@ export async function fetchCampaignMetrics(
   dateFrom: string,
   dateTo: string
 ): Promise<CampaignRow[]> {
+  const cleanCustomerId = sanitizeCustomerId(customerId);
   return fetchCampaignMetricsForAccountOrManager(
-    customerId,
+    cleanCustomerId,
     accessToken,
     dateFrom,
     dateTo,
     {
-      loginCustomerId:
-        process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || sanitizeCustomerId(customerId),
+      loginCustomerId: cleanCustomerId,
       concurrency: 5,
       retries: 1,
       maxDepth: 25,
@@ -729,12 +727,11 @@ export interface CampaignInfo {
 /**
  * List all campaigns across accessible accounts.
  */
-export async function listCampaigns(accessToken: string): Promise<CampaignInfo[]> {
-  const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
-  if (!loginCustomerId) {
-    throw new Error("GOOGLE_ADS_LOGIN_CUSTOMER_ID not set");
-  }
-
+export async function listCampaigns(
+  accessToken: string,
+  loginCustomerId: string
+): Promise<CampaignInfo[]> {
+  const cleanLoginId = sanitizeCustomerId(loginCustomerId);
   const accessibleCustomers = await getAccessibleCustomers(accessToken);
   const allCampaigns: CampaignInfo[] = [];
 
@@ -744,7 +741,7 @@ export async function listCampaigns(accessToken: string): Promise<CampaignInfo[]
         customerId,
         accessToken,
         CAMPAIGN_LIST_GAQL,
-        { loginCustomerId: loginCustomerId }
+        { loginCustomerId: cleanLoginId }
       );
 
       for (const chunk of chunks) {

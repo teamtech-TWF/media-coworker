@@ -1,15 +1,45 @@
 import { auth } from "@clerk/nextjs/server";
 import { getOrCreateWorkspace, getGoogleAdsIntegration } from "@/lib/db";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   const { userId } = auth();
-  const workspace = await getOrCreateWorkspace(userId!);
+  if (!userId) redirect("/sign-in");
+
+  if (searchParams.success === "disconnected") {
+    redirect("/");
+  }
+
+  const workspace = await getOrCreateWorkspace(userId);
   const integration = await getGoogleAdsIntegration(workspace.id);
   const connected = integration?.status === "active";
 
   return (
     <div style={{ maxWidth: 640 }}>
+      {searchParams.success === "connected" && (
+        <div style={{
+          background: "#ecfdf5",
+          border: "1px solid #10b981",
+          color: "#065f46",
+          padding: "16px",
+          borderRadius: 12,
+          marginBottom: 32,
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          boxShadow: "0 4px 12px rgba(16, 185, 129, 0.1)"
+        }}>
+          <span style={{ fontSize: 20 }}>✅</span>
+          <span>Google Ads connected successfully!</span>
+        </div>
+      )}
+
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>Settings</h1>
       <p style={{ color: "#666", marginBottom: 32 }}>Manage your integrations and workspace.</p>
 

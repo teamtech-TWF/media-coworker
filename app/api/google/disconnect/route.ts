@@ -10,5 +10,5 @@ export async function POST(req: NextRequest) {
   await revokeGoogleAdsIntegration(workspace.id);
   await auditLog(workspace.id, userId, "google_ads_disconnected", {});
 
-  return NextResponse.redirect(new URL("/app/settings?success=disconnected", req.url));
+  return NextResponse.redirect(new URL("/settings?success=disconnected", req.url));
 }
